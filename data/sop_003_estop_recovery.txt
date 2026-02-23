@@ -1,0 +1,63 @@
+SOP-003: Emergency Stop (E-Stop) Recovery Procedure
+Department: All Manufacturing Areas
+Equipment: All CNC Machines
+Revision: 4.0
+Last Updated: 2025-12-01
+
+1. PURPOSE
+This procedure defines the steps to safely recover a CNC machine after an Emergency Stop (E-Stop) has been activated. An improper recovery sequence can cause tool crashes, workpiece damage, loss of machine home position, and potential injury.
+
+2. WHEN IS E-STOP ACTIVATED?
+- Operator presses the red E-Stop mushroom button.
+- Machine detects a servo fault, overtravel, or spindle overload.
+- Safety interlock is triggered (door opened during operation on machines with safety interlocks).
+- Power outage or voltage sag below 180V.
+
+3. IMMEDIATE ACTIONS AFTER E-STOP
+- Do NOT attempt to restart the machine immediately.
+- Visually inspect the work area through the machine window. Look for:
+  - Broken tools or tool fragments.
+  - Displaced workpiece (shifted in the vise or chuck).
+  - Coolant leaks or smoke.
+  - Any unusual sounds (grinding, clicking) from the spindle or axes.
+- If there is smoke, fire, or fluid spraying, do NOT open the machine door. Call the fire team (ext. 911) and evacuate the area.
+
+4. RECOVERY PROCEDURE
+
+Step 4.1: Identify the Cause
+- Check the machine alarm screen. Press the ALARM button on the Haas control panel.
+- Record the alarm code and message (e.g., "ALARM 108 - AXIS OVERTRAVEL X+").
+- Common alarms and their meanings:
+  - ALARM 108/109: Axis overtravel. An axis hit its physical limit switch.
+  - ALARM 112: Servo fault. Motor drive error, possible mechanical binding.
+  - ALARM 120: Spindle fault. Overload, overtemperature, or encoder error.
+  - ALARM 154: Door interlock. The machine door was opened during a cycle.
+
+Step 4.2: Reset the E-Stop
+- Twist the E-Stop button clockwise to release it (pull-to-reset type).
+- Press the POWER ON button on the control panel.
+- Wait for the control to complete its boot sequence (approximately 45 seconds on Haas machines).
+
+Step 4.3: Re-Home the Machine (CRITICAL)
+- After an E-Stop, the machine loses its reference position (home position).
+- Press the HANDLE JOG button. Select the Z-axis first.
+- Slowly jog the Z-axis UPWARD (positive direction) to clear the workpiece.
+- NEVER jog downward first. You risk crashing the tool into the workpiece.
+- Once the Z-axis is clear, press POWER UP/RESTART and then HOME ALL.
+- Verify home position by jogging to a known reference point (e.g., the corner of the vise) and checking with an edge finder.
+
+Step 4.4: Inspect the Workpiece
+- Open the machine door (after ensuring the spindle has stopped completely).
+- Check the workpiece for damage, shifting, or incorrect positioning.
+- If the workpiece has shifted in the vise, it must be re-indicated before resuming the program.
+- Measure critical dimensions with calipers or a micrometer to verify the last cut was accurate.
+
+Step 4.5: Resume or Restart the Program
+- If the E-Stop occurred mid-program, do NOT press CYCLE START to continue from where it stopped.
+- Instead, use the "Search and Run" function to restart from a safe point (typically the beginning of the current operation or the last tool change).
+- Run the first few lines in SINGLE BLOCK mode (press SINGLE BLOCK on the control) to verify each move before running at full speed.
+
+5. DOCUMENTATION
+- Record the E-Stop event in the Machine Downtime Log (Form DT-003).
+- Include: Date, time, machine ID, alarm code, root cause, corrective action, and operator name.
+- If the same alarm occurs 3 times within 7 days, escalate to the Maintenance Supervisor for investigation.

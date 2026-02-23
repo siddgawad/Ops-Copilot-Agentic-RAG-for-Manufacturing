@@ -1,0 +1,54 @@
+SOP-002: Coolant System Maintenance
+Department: Machine Shop
+Equipment: All CNC Machines (Haas, Mazak, DMG Mori)
+Revision: 2.4
+Last Updated: 2025-09-20
+
+1. PURPOSE
+This procedure covers the routine maintenance of CNC machine coolant systems, including coolant concentration monitoring, filter replacement, sump cleaning, and coolant disposal. Proper coolant maintenance extends tool life by up to 40%, prevents bacterial growth, and maintains surface finish quality.
+
+2. SAFETY PRECAUTIONS
+- Wear nitrile gloves and safety glasses when handling coolant.
+- Used coolant is classified as hazardous waste. Do NOT pour it down drains.
+- If coolant contacts skin and causes irritation, wash immediately with soap and water and report to the safety office.
+- MSDS sheets for all coolant brands are located in the Chemical Safety binder at the supervisor station.
+
+3. COOLANT CONCENTRATION
+- Target concentration: 6-8% for water-soluble coolant (Castrol Alusol SL 51 XBB).
+- Measure concentration daily using a refractometer.
+- Refractometer reading below 5%: Add coolant concentrate. Never add water first.
+- Refractometer reading above 10%: Add deionized water to dilute.
+- Record daily readings in the Coolant Log (Form CL-002).
+
+4. WEEKLY MAINTENANCE
+
+Step 4.1: Skim Tramp Oil
+- Use the belt skimmer to remove floating tramp oil from the coolant sump.
+- Tramp oil comes from way lube, hydraulic leaks, and spindle oil.
+- Tramp oil above 2% concentration causes bacterial growth and foul odor.
+- If tramp oil exceeds 5%, perform a full sump clean (see Section 5).
+
+Step 4.2: Check pH Level
+- Use pH strips to measure coolant pH.
+- Acceptable range: 8.5 to 9.5.
+- pH below 8.0 indicates bacterial contamination. Add biocide (Castrol Safecut Bio) at 0.1% concentration.
+- pH above 10.0 indicates over-concentration. Dilute with deionized water.
+
+Step 4.3: Replace Coolant Filters
+- Paper bag filters: Replace every 2 weeks or when pressure differential exceeds 1.0 bar.
+- Magnetic separator: Clean every week. Remove metal fines from the magnetic drum.
+- Cyclone separator (if equipped): Inspect once per month. Clean sediment trap.
+
+5. QUARTERLY SUMP CLEANING PROCEDURE
+- Drain all coolant into the waste coolant tank (located behind Building C).
+- Remove the sump cover and physically scrape out all sludge, chips, and biological growth.
+- Rinse the sump with a high-pressure washer using Castrol Sump Cleaner at 2% concentration.
+- Refill with fresh coolant mixed to 7% concentration.
+- Run the machine for 15 minutes to circulate coolant through all lines.
+- Verify concentration with refractometer and record in Coolant Log.
+
+6. COOLANT DISPOSAL
+- Used coolant must be collected in the 1000-liter IBC tote at the Hazardous Waste Station.
+- Contact Environmental Services (ext. 4422) for pickup when tote is 80% full.
+- Never mix different coolant types in the same tote.
+- Disposal records must be kept for 5 years per EPA regulations.

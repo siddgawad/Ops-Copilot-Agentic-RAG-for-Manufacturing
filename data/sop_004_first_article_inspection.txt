@@ -1,0 +1,62 @@
+SOP-004: First Article Inspection (FAI) Procedure
+Department: Quality Assurance
+Equipment: CMM (Coordinate Measuring Machine), Calipers, Micrometers, Height Gauge
+Revision: 2.2
+Last Updated: 2025-10-10
+
+1. PURPOSE
+First Article Inspection is the process of verifying that the very first part produced from a new setup, new program, or new tooling meets all drawing specifications before authorizing full production. FAI prevents mass production of non-conforming parts, saving material, time, and cost.
+
+2. WHEN IS FAI REQUIRED?
+- New part number being manufactured for the first time.
+- New CNC program (even for an existing part number).
+- After any tooling change (new inserts, new tool holder, new fixture).
+- After machine maintenance that could affect accuracy (spindle bearing replacement, ballscrew replacement).
+- After a customer complaint or quality escape on the same part number.
+- Shift change, if required by the quality plan.
+
+3. FAI PROCEDURE
+
+Step 3.1: Run the First Part
+- Load the CNC program and run ONE part only.
+- Run the first part at reduced feed rate (50% override) and in Single Block mode for the first operation.
+- Once the first operation is complete, stop the machine. Do NOT continue to the next part.
+
+Step 3.2: Deburr and Clean
+- Remove the part from the fixture carefully.
+- Deburr all edges per the drawing requirements.
+- Clean the part with compressed air and wipe with a lint-free cloth.
+- Allow the part to reach ambient temperature (20°C ± 2°C) before measuring. Thermal expansion can cause measurement errors of up to 0.012mm per 100mm of part length per degree Celsius.
+
+Step 3.3: Dimensional Inspection
+- Measure ALL critical dimensions listed on the drawing.
+- Use the appropriate measurement tool for each dimension:
+  - Dimensions with tolerance ≥ 0.1mm: Digital calipers (resolution 0.01mm).
+  - Dimensions with tolerance < 0.1mm: Micrometer (resolution 0.001mm).
+  - GD&T features (true position, concentricity, runout): CMM (Coordinate Measuring Machine).
+  - Surface finish: Profilometer (Ra measurement in micrometers).
+- Record all measurements on the FAI Report (Form QA-004).
+
+Step 3.4: GD&T Verification (if applicable)
+- True Position: Measure X and Y coordinates of the feature on the CMM. Calculate the actual position deviation using the formula: TP = 2 × sqrt((X_actual - X_nominal)² + (Y_actual - Y_nominal)²). Compare to the drawing tolerance (e.g., ⌀0.25mm at MMC).
+- Concentricity: Mount the part on the CMM or use a V-block and dial indicator. Rotate 360° and record Total Indicator Reading (TIR). TIR must be less than the concentricity tolerance.
+- Surface Finish: Use a profilometer perpendicular to the lay direction. Take 3 readings and average them. Compare to the drawing callout (e.g., Ra 1.6 μm).
+
+Step 3.5: Decision
+- If ALL dimensions are within tolerance: Sign off the FAI Report and authorize full production.
+- If ANY dimension is out of tolerance:
+  - Determine root cause (tool wear, incorrect offset, fixture issue, program error).
+  - Correct the issue.
+  - Run another first article and repeat the inspection.
+  - Do NOT authorize production until all dimensions pass.
+
+4. DOCUMENTATION
+- Completed FAI Reports must be filed in the Quality Records room (Building A, Room 104).
+- Retain FAI Reports for a minimum of 7 years, or per customer contract requirements.
+- For aerospace parts (AS9102): Use the AS9102 FAI form with all three reporting tables (Part Accountability, Product Accountability, Characteristic Accountability).
+
+5. COMMON ISSUES AND SOLUTIONS
+- Dimension consistently 0.02mm oversized: Check tool wear offset. Adjust H or D offset.
+- Hole position out of true position: Verify fixture alignment. Re-indicate the fixture with a dial indicator.
+- Surface finish too rough (Ra > callout): Check tool nose radius, increase spindle speed, decrease feed rate, verify coolant flow.
+- Part dimensions change between morning and afternoon: Temperature variation. Ensure the shop maintains 20°C ± 2°C. Measure parts only after thermal stabilization.
