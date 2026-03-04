@@ -109,7 +109,14 @@ class VectorStore:
             chunks = self.chunk_text(full_text, max_words=350)
             chunk_ids = [f"{filename}_chunk_{i}" for i in range(len(chunks))]
 
-            self.collection.add(documents=chunks, ids=chunk_ids)
+            # Batch add to avoid OpenAI max_tokens_per_request limits
+            batch_size = 50
+            for i in range(0, len(chunks), batch_size):
+                end_idx = i + batch_size
+                batch_chunks = chunks[i:end_idx]
+                batch_ids = chunk_ids[i:end_idx]
+                self.collection.add(documents=batch_chunks, ids=batch_ids)
+
             self.raw_chunks.extend(chunks)
 
             # Track source filename for each chunk (for citations)
