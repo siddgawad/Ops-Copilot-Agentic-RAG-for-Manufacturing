@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 class QueryRequest(BaseModel):
     question: str = Field(..., description="The operations question from the user")
     machine_id: str | None = Field(default=None, description="Optional ID of machine involved")
+    history: list[dict] | None = Field(default=None, description="Conversation history [{question, answer}]")
 
 
 class SourceCitation(BaseModel):
