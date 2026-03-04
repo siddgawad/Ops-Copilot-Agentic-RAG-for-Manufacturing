@@ -1,5 +1,12 @@
 import streamlit as st
-import requests
+import os
+
+# Set API key from Streamlit secrets if running in cloud, else local env
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
+from src.rag.retriever import VectorStore
+from src.rag.generator import generate_answer
 
 # Page config
 st.set_page_config(
@@ -12,8 +19,15 @@ st.set_page_config(
 st.title("🏭 Ops Copilot")
 st.markdown("Ask questions about manufacturing operations in plain English. Answers are grounded in real Fanuc robot SOPs.")
 
-# Backend API URL
-API_URL = "http://127.0.0.1:8000/ask"
+# --- Initialize Backend in Streamlit ---
+@st.cache_resource
+def load_backend():
+    db = VectorStore()
+    db.load_documents_from_folder("data")
+    return db
+
+with st.spinner("Loading manufacturing SOPs and Fanuc manuals..."):
+    db = load_backend()
 
 # Initialize chat history and conversation memory
 if "messages" not in st.session_state:
@@ -25,7 +39,6 @@ if "memory" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        # Show sources if they exist
         if message.get("sources"):
             with st.expander("📄 Source Citations"):
                 for src in message["sources"]:
@@ -39,10 +52,10 @@ with st.sidebar:
     st.markdown("- *What is the maximum torque for spindle bolts?*")
     st.markdown("- *How do I perform a First Article Inspection?*")
     st.markdown("- *What are the E-stop recovery steps?*")
-    st.markdown("- *What coolant concentration is required?*")
+    st.markdown("- *What is the motion range of axis J1?*")
     st.divider()
     st.markdown("**How it works:**")
-    st.markdown("1. Your question is searched against 5+ manufacturing SOPs and Fanuc robot manuals")
+    st.markdown("1. Your question is searched against 500+ pages of Fanuc robot manuals")
     st.markdown("2. Hybrid retrieval: semantic (ChromaDB) + keyword (BM25)")
     st.markdown("3. Results merged via Reciprocal Rank Fusion")
     st.markdown("4. GPT-4o-mini generates a grounded answer")
@@ -54,58 +67,45 @@ with st.sidebar:
 
 # Chat input
 if prompt := st.chat_input("Ask a question about machine operations..."):
-    # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    # Display user message
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Display assistant response
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         message_placeholder.markdown("🔍 Searching SOPs...")
         
         try:
-            payload = {"question": prompt}
-            response = requests.post(API_URL, json=payload, timeout=30)
+            # 1. Direct Hybrid Retrieval
+            results = db.search(query=prompt, n_results=3) 
+            chunks = [r["text"] for r in results]
             
-            if response.status_code == 200:
-                data = response.json()
-                answer = data.get("answer", "No answer returned.")
-                sources = data.get("sources", [])
+            # 2. Direct OpenAI Generation
+            answer = generate_answer(prompt, chunks, history=st.session_state.memory)
+            
+            # 3. Format sources
+            sources = [
+                {"text": r["text"][:200] + "...", "source": r["source"], "score": r["score"]}
+                for r in results
+            ]
+            
+            message_placeholder.markdown(answer)
+            
+            if sources:
+                with st.expander("📄 Source Citations"):
+                    for src in sources:
+                        st.markdown(f"**{src['source']}** (relevance: {src['score']:.4f})")
+                        st.caption(src["text"])
+            
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": answer,
+                "sources": sources
+            })
+            
+            st.session_state.memory.append({"question": prompt, "answer": answer})
+            if len(st.session_state.memory) > 5:
+                st.session_state.memory = st.session_state.memory[-5:]
                 
-                message_placeholder.markdown(answer)
-                
-                # Show source citations
-                if sources:
-                    with st.expander("📄 Source Citations"):
-                        for src in sources:
-                            st.markdown(f"**{src['source']}** (relevance: {src['score']:.4f})")
-                            st.caption(src["text"])
-                
-                # Save to chat history with sources
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": answer,
-                    "sources": sources
-                })
-                
-                # Save to conversation memory (for future context)
-                st.session_state.memory.append({
-                    "question": prompt,
-                    "answer": answer
-                })
-                # Keep only last 5 turns
-                if len(st.session_state.memory) > 5:
-                    st.session_state.memory = st.session_state.memory[-5:]
-                    
-            else:
-                error_msg = f"⚠️ Backend returned status code {response.status_code}"
-                message_placeholder.markdown(error_msg)
-                
-        except requests.exceptions.ConnectionError:
-            message_placeholder.markdown(
-                "⚠️ **Connection Error:** Make sure the FastAPI backend is running.\n\n"
-                "```bash\ncd sid/projA\nuvicorn src.main:app --reload\n```"
-            )
+        except Exception as e:
+            message_placeholder.markdown(f"⚠️ **Error:** {str(e)}")
