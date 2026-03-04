@@ -1,17 +1,17 @@
 from pydantic import BaseModel, Field 
 
-#We will use object-oriented programming - first we create a class that arbitrarily defines what a Query is 
 
 class QueryRequest(BaseModel):
-    #this must be a string and we provide metadata for the swagger ui 
-    question: str = Field(..., 
-    description="The operations question from the user")
-
-    #this is an optional string defaulting to None 
+    question: str = Field(..., description="The operations question from the user")
     machine_id: str | None = Field(default=None, description="Optional ID of machine involved")
 
-class QueryResponse(BaseModel):
-    #this must eb a string containing the A's answer 
-    answer: str
 
-    
+class SourceCitation(BaseModel):
+    text: str = Field(..., description="The retrieved chunk text")
+    source: str = Field(..., description="Source document filename")
+    score: float = Field(..., description="Relevance score from hybrid search")
+
+
+class QueryResponse(BaseModel):
+    answer: str = Field(..., description="Generated answer from the LLM")
+    sources: list[SourceCitation] = Field(default=[], description="Source citations for the answer")

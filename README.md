@@ -1,90 +1,66 @@
-# 🤖 Ops Copilot — Production-Grade Agentic RAG for Manufacturing
+# 🏭 Ops Copilot — Hybrid RAG for Manufacturing Operations
 
-> An AI operations assistant that answers factory floor questions using Retrieval-Augmented Generation, tool calling, guardrails, and rigorous evaluation. Built to demonstrate $450K-level engineering depth, not tutorial-level API glue.
+> Ask factory floor questions in plain English. Get grounded answers from real Fanuc robot SOPs and manufacturing procedures.
+
+Ops Copilot is a **Retrieval-Augmented Generation (RAG) pipeline** that ingests real manufacturing documentation — including 500+ pages of Fanuc robot maintenance manuals — and lets factory operators query it conversationally. Answers are grounded in source documents with full citations.
+
+## What Makes This Not Tutorial-Level
+
+| Feature | Typical RAG Tutorial | Ops Copilot |
+|---|---|---|
+| **Retrieval** | Dense vector search only | **Hybrid: ChromaDB (semantic) + BM25 (keyword)** |
+| **Ranking** | Cosine similarity | **Reciprocal Rank Fusion** — merges dense + sparse results |
+| **Chunking** | Fixed `chunk_size=500` | Sentence-boundary chunking with 1-sentence overlap |
+| **Data** | Wikipedia paragraphs | **Real Fanuc robot manuals** (500+ pages) + 5 manufacturing SOPs |
+| **Prompt** | Generic Q&A | Domain-tuned for manufacturing terminology interpretation |
+| **Citations** | None | **Source document + relevance score** per answer |
+| **Memory** | Single-turn | **Conversation memory** — retains last 3 turns for follow-up questions |
+| **API** | Script | **FastAPI + Pydantic v2** with request/response validation |
+| **UI** | None | **Streamlit chat interface** with citation panels |
 
 ## Architecture
 
 ```
-User Question → Input Guardrail (prompt injection detection)
-  → Router (RAG question? Tool request? Chitchat?)
-    → RAG Path:
-        → Hybrid Retrieval (dense embeddings + BM25 keyword search)
-        → Reciprocal Rank Fusion (merge dense + sparse results)
-        → Cross-Encoder Reranker (top 10 → top 3)
-        → LLM Generation (structured JSON output via function calling)
-        → Grounding Check (is answer supported by retrieved chunks?)
-    → Tool Path:
-        → Calculator (torque, unit conversions)
-        → Device Status Lookup (mock OPC UA API)
-        → Alert History Query (SQL)
-    → Chitchat Path:
-        → Polite refusal with redirect to ops topics
-  → Conversation Memory (last 5 turns)
-  → Response + cost metrics + latency → Prometheus → Grafana
+User Question
+  → Streamlit Chat UI (conversation memory, source citations)
+    → FastAPI /ask endpoint (Pydantic request validation)
+      → Hybrid Retrieval:
+          ├── ChromaDB (HNSW cosine) → Top 10 semantic matches
+          └── BM25Okapi (keyword)    → Top 10 keyword matches
+      → Reciprocal Rank Fusion (k=60) → Merged ranking
+      → Top 3 chunks selected with source metadata
+    → OpenAI GPT-4o-mini (domain-tuned prompt, temperature=0.2)
+  → Answer + Source Citations + Relevance Scores
 ```
-
-## What Makes This Elite (Not Tutorial-Level)
-
-| Feature | Tutorial Version | This Version |
-|---|---|---|
-| Chunking | `chunk_size=500` default | 3 strategies benchmarked (fixed, semantic, parent-child), winner chosen with recall@5 data |
-| Embeddings | `text-embedding-ada-002` because default | 3 models benchmarked on recall, latency, and cost |
-| Retrieval | Dense search only | Hybrid: dense + BM25 with Reciprocal Rank Fusion |
-| Ranking | None | Cross-encoder reranker with precision before/after |
-| LLM Output | Free text string | Structured JSON via Pydantic + function calling |
-| Latency | Full response only | Token-by-token SSE streaming |
-| Hallucination | Hope for the best | Grounding score: is answer in retrieved chunks? |
-| Memory | Single-turn Q&A | Conversation buffer (5 turns) with eval comparison |
-| Cost | Ignored | Per-request token tracking + $/query on Prometheus |
-| Quality | "It looks right" | 100+ golden QA eval (RAGAS: faithfulness, relevance, precision, recall) |
-| Failures | Unknown | 20 failure cases root-caused, 10+ fixed with hybrid search |
-| Security | None | Input guardrail (prompt injection) + output guardrail (grounding threshold) |
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| API | FastAPI, Pydantic v2, SSE streaming |
-| Agent | LangGraph (state machine with routing) |
-| Vector DB | ChromaDB (dense) + rank_bm25 (sparse) |
-| Reranker | sentence-transformers cross-encoder |
-| LLM | OpenAI GPT-4o (structured output) |
-| Eval | RAGAS, custom golden QA harness |
-| Observability | Prometheus + Grafana |
-| Infra | Docker Compose, GitHub Actions CI/CD |
-| UI | Streamlit |
+| **API** | FastAPI, Pydantic v2, Uvicorn |
+| **Vector DB** | ChromaDB (persistent, HNSW cosine similarity) |
+| **Keyword Search** | BM25Okapi (rank_bm25) |
+| **Fusion** | Reciprocal Rank Fusion (k=60) |
+| **LLM** | OpenAI GPT-4o-mini |
+| **PDF Parsing** | PyMuPDF (fitz) |
+| **UI** | Streamlit |
 
 ## Project Structure
 
 ```
 ops-copilot/
 ├── src/
-│   ├── main.py              # FastAPI app, routes, middleware
-│   ├── schemas.py            # Pydantic request/response models
-│   ├── agent/
-│   │   ├── graph.py          # LangGraph state machine
-│   │   ├── nodes.py          # Agent nodes (classify, retrieve, generate)
-│   │   └── tools.py          # Calculator, device status, alert query
-│   ├── rag/
-│   │   ├── loader.py         # Document loading + chunking strategies
-│   │   ├── retriever.py      # Hybrid retrieval (dense + BM25 + RRF)
-│   │   ├── reranker.py       # Cross-encoder reranking
-│   │   └── embeddings.py     # Embedding model abstraction
-│   ├── guardrails/
-│   │   ├── input_guard.py    # Prompt injection detection
-│   │   └── output_guard.py   # Grounding score check
-│   ├── eval/
-│   │   ├── golden_qa.json    # 100+ question-answer pairs
-│   │   ├── run_eval.py       # RAGAS evaluation runner
-│   │   └── benchmarks/       # Chunking + embedding comparison results
-│   └── observability/
-│       └── metrics.py        # Prometheus counters, histograms, gauges
+│   ├── main.py              # FastAPI app — /health, /ask endpoints
+│   ├── app.py               # Streamlit chat UI with citations
+│   ├── schemas.py           # Pydantic models (QueryRequest, QueryResponse, SourceCitation)
+│   └── rag/
+│       ├── retriever.py     # VectorStore: ChromaDB + BM25 + RRF hybrid search
+│       └── generator.py     # OpenAI generation with conversation memory
 ├── data/
-│   └── sops/                 # 5+ manufacturing SOPs (PDF/TXT)
-├── tests/
-├── docker-compose.yml
-├── Dockerfile
-├── pyproject.toml
+│   ├── *.pdf                # Fanuc robot manuals (500+ pages)
+│   └── sop_*.txt            # 5 manufacturing SOPs (spindle, coolant, e-stop, FAI, PM)
+├── requirements.txt
+├── .env.example
 └── README.md
 ```
 
@@ -92,47 +68,72 @@ ops-copilot/
 
 ```bash
 # 1. Clone and enter
-git clone https://github.com/siddgawad/Ops-Copilot-Agentic-RAG-for-Manufacturing.git
-cd Ops-Copilot-Agentic-RAG-for-Manufacturing
+git clone https://github.com/siddgawad/ops-copilot.git
+cd ops-copilot
 
 # 2. Create virtual environment
-py -m venv .venv
-.\.venv\Scripts\activate   # Windows
+python -m venv .venv
+.venv\Scripts\activate       # Windows
+# source .venv/bin/activate  # Mac/Linux
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Set environment variables
+# 4. Set your OpenAI API key
 cp .env.example .env
-# Add your OPENAI_API_KEY
+# Edit .env and add your OPENAI_API_KEY
 
-# 5. Run
+# 5. Start the FastAPI backend
 uvicorn src.main:app --reload
 
-# 6. Open docs
-# http://127.0.0.1:8000/docs
+# 6. In a second terminal, start the Streamlit UI
+streamlit run src/app.py
 ```
 
-## Current Progress
+The API docs will be at `http://127.0.0.1:8000/docs`
+The chat UI will be at `http://localhost:8501`
 
-- [x] FastAPI + Pydantic schemas (`/health`, `/ask`)
-- [ ] ChromaDB + document loading + 3 chunking strategies
-- [ ] Embedding model benchmark
-- [ ] Hybrid retrieval (dense + BM25)
-- [ ] Cross-encoder reranker
-- [ ] LangGraph agent (classify → route → generate)
-- [ ] Tools (calculator, device status)
-- [ ] Structured LLM output
-- [ ] SSE streaming
-- [ ] Conversation memory
-- [ ] Input/output guardrails
-- [ ] Grounding check
-- [ ] Cost tracking (Prometheus)
-- [ ] 100+ golden QA eval (RAGAS)
-- [ ] Failure analysis (20 cases)
-- [ ] Streamlit UI
-- [ ] Docker Compose
-- [ ] CI/CD (GitHub Actions)
+## Sample Questions
+
+- *"What vibration level requires immediate spindle shutdown?"*
+- *"What is the maximum torque for spindle bolts?"*
+- *"How do I perform a First Article Inspection?"*
+- *"What are the E-stop recovery steps for the Fanuc LR Mate?"*
+- *"What coolant concentration should I maintain?"*
+- *"What is the motion range for axis J1?"*
+
+## How Hybrid Search Works
+
+Most RAG tutorials use **only** semantic (vector) search. This misses exact keyword matches — dangerous in manufacturing where part numbers, torque specs, and model numbers matter.
+
+Ops Copilot uses both:
+
+1. **ChromaDB** (dense vectors, HNSW, cosine similarity) — finds semantically similar chunks
+2. **BM25** (term frequency, keyword matching) — finds exact terminology matches
+3. **Reciprocal Rank Fusion** (k=60) — merges both ranked lists into a single fused ranking
+
+This means a query like *"Fanuc LR Mate 200iD axis J1 range"* will match even if the semantic embedding doesn't capture the exact model number, because BM25 catches it via keyword overlap.
+
+## Data
+
+| Document | Pages | Type |
+|---|---|---|
+| Fanuc Robot LR Mate 200iD Operators Manual | 200+ | PDF |
+| Fanuc 7066350 Manual | 300+ | PDF |
+| SOP 001 — Spindle Vibration Analysis | 3 KB | TXT |
+| SOP 002 — Coolant System Maintenance | 3 KB | TXT |
+| SOP 003 — Emergency Stop Recovery | 4 KB | TXT |
+| SOP 004 — First Article Inspection | 4 KB | TXT |
+| SOP 005 — Preventive Maintenance Schedule | 5 KB | TXT |
+
+## Future Roadmap
+
+- [ ] Cross-encoder reranker (top 10 → top 3 with precision improvement)
+- [ ] Input guardrails (prompt injection detection)
+- [ ] Output guardrails (grounding score — is the answer supported by retrieved chunks?)
+- [ ] RAGAS evaluation framework (faithfulness, answer relevancy, context precision)
+- [ ] Docker Compose for one-command deployment
+- [ ] SSE streaming for real-time token output
 
 ## License
 
