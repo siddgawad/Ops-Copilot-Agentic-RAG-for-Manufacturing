@@ -1,19 +1,22 @@
-import chromadb 
+import chromadb
 import os
+import time
 import fitz
 from rank_bm25 import BM25Okapi
+
 
 class VectorStore:
     def __init__(self):
         from chromadb.utils import embedding_functions
-        
-        # Use OpenAI embeddings to save RAM (avoids downloading 400MB local model)
+
+        # Use OpenAI embeddings — avoids downloading 400MB local model (OOM on Render 512MB)
         openai_ef = embedding_functions.OpenAIEmbeddingFunction(
             api_key=os.getenv("OPENAI_API_KEY"),
             model_name="text-embedding-3-small"
         )
-        
-        self.client = chromadb.PersistentClient(path="./.chromadb")
+
+        # Use EphemeralClient — Render free tier has no persistent disk, so PersistentClient is useless
+        self.client = chromadb.EphemeralClient()
         self.collection = self.client.get_or_create_collection(
             name="manufacturing_sops",
             embedding_function=openai_ef,
@@ -21,38 +24,31 @@ class VectorStore:
         )
         self.bm25 = None
         self.raw_chunks = []
-        self.chunk_sources = {}  # Maps chunk text -> source filename
+        self.chunk_sources = {}
 
-    def add_documents(self, documents: list[str], ids: list[str]):
-        self.collection.add(documents=documents, ids=ids)
-    
     def search(self, query: str, n_results: int = 3):
         """Hybrid search: ChromaDB (semantic) + BM25 (keyword) merged via Reciprocal Rank Fusion."""
-        # 1. Semantic search via ChromaDB
         chroma_results = self.collection.query(query_texts=[query], n_results=10)
 
-        # 2. Keyword search via BM25
         tokenized_query = query.lower().split(" ")
         bm25_scores = self.bm25.get_scores(tokenized_query)
         bm25_ranked_docs = [doc for _, doc in sorted(zip(bm25_scores, self.raw_chunks), reverse=True)][:10]
 
-        # 3. Reciprocal Rank Fusion (k=60)
         fused_scores = {}
-        
+
         chroma_docs = chroma_results['documents'][0]
         for rank, doc in enumerate(chroma_docs):
             if doc not in fused_scores:
                 fused_scores[doc] = 0
             fused_scores[doc] += 1 / (rank + 60)
-            
+
         for rank, doc in enumerate(bm25_ranked_docs):
             if doc not in fused_scores:
                 fused_scores[doc] = 0
             fused_scores[doc] += 1 / (rank + 60)
-            
-        # 4. Sort by fused score and return top N with source metadata
+
         sorted_docs = sorted(fused_scores.items(), key=lambda item: item[1], reverse=True)
-        
+
         results = []
         for doc, score in sorted_docs[:n_results]:
             source = self.chunk_sources.get(doc, "Unknown")
@@ -63,8 +59,8 @@ class VectorStore:
             })
         return results
 
-    def chunk_text(self, text: str, max_words: int = 50, overlap: int = 50):
-        """Sentence-boundary chunking with 1-sentence overlap to prevent context severing."""
+    def chunk_text(self, text: str, max_words: int = 100):
+        """Sentence-boundary chunking with 1-sentence overlap."""
         sentences = text.split(". ")
         chunks = []
         current_chunk = []
@@ -74,40 +70,26 @@ class VectorStore:
             word_count = len(sentence.split(" "))
 
             if current_word_count + word_count > max_words and len(current_chunk) > 0:
-                chunks.append(". ".join(current_chunk) + ".")
-                current_chunk = [current_chunk[-1]]  # overlap: keep last sentence
+                chunk_text = ". ".join(current_chunk) + "."
+                # HARD LIMIT: truncate to 4000 chars to guarantee < 8192 tokens
+                chunks.append(chunk_text[:4000])
+                current_chunk = [current_chunk[-1]]
                 current_word_count = len(current_chunk[0].split(" "))
 
             current_chunk.append(sentence)
             current_word_count += word_count
 
         if current_chunk:
-            chunks.append(". ".join(current_chunk) + ".")
+            chunk_text = ". ".join(current_chunk) + "."
+            chunks.append(chunk_text[:4000])
 
-        return chunks 
+        return chunks
 
     def load_documents_from_folder(self, folder_path: str):
         """Load PDFs and TXT files, chunk them, index in ChromaDB + BM25."""
-        # Skip re-indexing if ChromaDB already has the documents
-        existing_count = self.collection.count()
-        if existing_count > 0:
-            print(f"✅ ChromaDB already contains {existing_count} chunks. Skipping PDF parsing and embedding API calls.")
-            
-            # Repopulate raw_chunks and bm25 from the DB
-            all_docs = self.collection.get()
-            self.raw_chunks = all_docs["documents"]
-            
-            for doc, meta_id in zip(self.raw_chunks, all_docs["ids"]):
-                # Extract filename from ID (e.g., "manual.pdf_chunk_5" -> "manual.pdf")
-                self.chunk_sources[doc] = meta_id.rsplit('_chunk_', 1)[0]
-                
-            tokenized_corpus = [chunk.lower().split(" ") for chunk in self.raw_chunks]
-            self.bm25 = BM25Okapi(tokenized_corpus)
-            print(f"✅ Rebuilt BM25 index from {len(self.raw_chunks)} existing database chunks")
-            return
-
-        print("⚠️ ChromaDB is empty. Parsing PDFs and calling OpenAI Embeddings API...")
         filenames = os.listdir(folder_path)
+        total_embedded = 0
+
         for filename in filenames:
             filepath = os.path.join(folder_path, filename)
             full_text = ""
@@ -120,32 +102,45 @@ class VectorStore:
                 with open(filepath, encoding="utf-8") as f:
                     full_text = f.read()
             else:
-                continue 
+                continue
 
             if len(full_text) == 0:
                 continue
 
-            chunks = self.chunk_text(full_text, max_words=350)
+            chunks = self.chunk_text(full_text, max_words=100)
             chunk_ids = [f"{filename}_chunk_{i}" for i in range(len(chunks))]
 
-            # Batch add to avoid OpenAI max_tokens_per_request limits
-            batch_size = 50
+            # Batch size = 5 chunks at a time (ultra-safe for OpenAI token limits)
+            batch_size = 5
             for i in range(0, len(chunks), batch_size):
-                end_idx = i + batch_size
-                batch_chunks = chunks[i:end_idx]
-                batch_ids = chunk_ids[i:end_idx]
-                self.collection.add(documents=batch_chunks, ids=batch_ids)
+                batch_chunks = chunks[i:i + batch_size]
+                batch_ids = chunk_ids[i:i + batch_size]
+                try:
+                    self.collection.add(documents=batch_chunks, ids=batch_ids)
+                    total_embedded += len(batch_chunks)
+                except Exception as e:
+                    print(f"⚠️ Batch {i}-{i+batch_size} of {filename} failed: {e}")
+                    # Try one-by-one as fallback
+                    for j, (single_chunk, single_id) in enumerate(zip(batch_chunks, batch_ids)):
+                        try:
+                            self.collection.add(documents=[single_chunk], ids=[single_id])
+                            total_embedded += 1
+                        except Exception as inner_e:
+                            print(f"  ❌ Skipping chunk {single_id}: {inner_e}")
+                # Rate-limit protection: 0.3s pause between API calls
+                time.sleep(0.3)
 
             self.raw_chunks.extend(chunks)
 
-            # Track source filename for each chunk (for citations)
             for chunk in chunks:
                 self.chunk_sources[chunk] = filename
 
-        # Build BM25 keyword index
+            print(f"  ✅ {filename}: {len(chunks)} chunks embedded")
+
+        # Build BM25 keyword index (pure CPU, no API calls)
         tokenized_corpus = [chunk.lower().split(" ") for chunk in self.raw_chunks]
         self.bm25 = BM25Okapi(tokenized_corpus)
-        print(f"✅ Indexed {len(self.raw_chunks)} chunks from {len(filenames)} files")
+        print(f"✅ Total: {total_embedded} chunks indexed from {len(filenames)} files")
         print(f"✅ BM25 keyword index built")
 
 
