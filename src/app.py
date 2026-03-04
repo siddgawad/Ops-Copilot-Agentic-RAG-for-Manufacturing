@@ -1,6 +1,11 @@
 import streamlit as st
 import os
 
+# --- SQLite Override for Streamlit Cloud (ChromaDB requirement) ---
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 # Set API key from Streamlit secrets if running in cloud, else local env
 if "OPENAI_API_KEY" in st.secrets:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
