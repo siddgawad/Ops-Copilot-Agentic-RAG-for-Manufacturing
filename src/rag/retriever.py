@@ -5,9 +5,18 @@ from rank_bm25 import BM25Okapi
 
 class VectorStore:
     def __init__(self):
+        from chromadb.utils import embedding_functions
+        
+        # Use OpenAI embeddings to save RAM (avoids downloading 400MB local model)
+        openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            model_name="text-embedding-3-small"
+        )
+        
         self.client = chromadb.PersistentClient(path="./.chromadb")
         self.collection = self.client.get_or_create_collection(
             name="manufacturing_sops",
+            embedding_function=openai_ef,
             metadata={"hnsw:space": "cosine"}
         )
         self.bm25 = None
