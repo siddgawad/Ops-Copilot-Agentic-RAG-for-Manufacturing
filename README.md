@@ -1,87 +1,173 @@
-# 🏭 Ops Copilot — Hybrid RAG for Manufacturing Operations
+# Ops Copilot — Hybrid RAG for Manufacturing Operations
 
-> **Live demo:** https://ops-manufacturing-rag.streamlit.app/
+A production-deployed Retrieval-Augmented Generation system that answers manufacturing operations questions using Fanuc robot technical manuals and SOPs. Combines semantic vector search with keyword search via Reciprocal Rank Fusion for accurate, citation-backed responses.
 
-## 🎯 Why this project matters
-Manufacturing operators need instant, reliable answers from dense technical documentation (PDF manuals, SOPs). **Ops Copilot** demonstrates a production‑ready Retrieval‑Augmented Generation (RAG) system that:
-- Retrieves from **real Fanuc robot manuals** (500+ pages) and internal SOPs.
-- Provides **source citations** with relevance scores, ensuring traceability.
-- Maintains **conversation memory** for multi‑turn interactions.
-## 🚀 Architecture: Render + Vercel
-The project has been scaled up from a single Streamlit script to a modern, decoupled architecture:
-1. **Backend API (Render):** FastAPI powers the core RAG logic (ChromaDB, BM25, Reciprocal Rank Fusion, OpenAI).
-2. **Frontend UI (Vercel):** A sleek, dark-mode Next.js 15 application built with React and Tailwind CSS.
+**[Live Demo](https://ops-copilot-agentic-rag-for-manufacturing.onrender.com/docs)** · **[API Docs](https://ops-copilot-agentic-rag-for-manufacturing.onrender.com/docs)**
 
-## 🛠️ Tech Stack
-| Layer | Technology |
-|---|---|
-| **API** | FastAPI, Pydantic v2, Uvicorn |
-| **Vector DB** | ChromaDB (HNSW, cosine) |
-| **Keyword Search** | BM25 (rank‑bm25) |
-| **Fusion** | Reciprocal Rank Fusion (k=60) |
-| **LLM** | OpenAI GPT‑4o‑mini |
-| **Frontend** | Next.js 15, React 19, Tailwind CSS, Lucide Icons |
+---
 
-## 📂 Project Structure
-```text
-ops-copilot/
-├─ frontend/           # Next.js UI (deployed to Vercel)
-│  ├─ src/app/         # React pages & components
-│  └─ package.json     
-├─ src/
-│  ├─ main.py          # FastAPI endpoints (deployed to Render)
-│  ├─ schemas.py       # Pydantic models (incl. SourceCitation & History)
-│  └─ rag/
-│     ├─ retriever.py  # Hybrid retrieval implementation
-│     └─ generator.py  # Prompt construction & OpenAI call
-├─ data/                # PDF manuals & SOP txt files
-├─ requirements.txt
-├─ render.yaml          # Render deployment config
-└─ README.md
+## How It Works
+
+```
+User Question
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│              FastAPI Backend (Render)            │
+│                                                 │
+│  ┌──────────────┐    ┌──────────────┐           │
+│  │  ChromaDB    │    │    BM25      │           │
+│  │  (Semantic)  │    │  (Keyword)   │           │
+│  └──────┬───────┘    └──────┬───────┘           │
+│         │                   │                   │
+│         └─────────┬─────────┘                   │
+│                   │                             │
+│         Reciprocal Rank Fusion                  │
+│                   │                             │
+│                   ▼                             │
+│          Top 3 Ranked Chunks                    │
+│                   │                             │
+│                   ▼                             │
+│          OpenAI GPT-4o-mini                     │
+│          (Grounded Generation)                  │
+│                   │                             │
+│                   ▼                             │
+│     Answer + Source Citations + Scores          │
+└─────────────────────────────────────────────────┘
+     │
+     ▼
+Next.js Frontend (Vercel)
 ```
 
-## ▶️ Quick Start (local dev)
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Backend | Python 3.11, FastAPI | REST API, request handling |
+| Vector DB | ChromaDB + OpenAI `text-embedding-3-small` | Semantic similarity search |
+| Keyword Search | BM25Okapi (rank-bm25) | Exact term matching |
+| Fusion | Reciprocal Rank Fusion (k=60) | Merges semantic + keyword rankings |
+| LLM | OpenAI GPT-4o-mini | Answer generation from retrieved context |
+| Frontend | Next.js 15, React 19, Tailwind CSS | Chat interface |
+| Deployment | Render (backend), Vercel (frontend) | Cloud hosting |
+
+## Project Structure
+
+```
+├── src/
+│   ├── main.py              # FastAPI app, CORS, routes
+│   ├── schemas.py           # Pydantic request/response models
+│   └── rag/
+│       ├── retriever.py     # VectorStore: chunking, indexing, hybrid search
+│       └── generator.py     # OpenAI prompt construction, answer generation
+├── tests/
+│   ├── test_retriever.py    # Unit tests for chunking and search logic
+│   └── test_api.py          # Integration tests for API endpoints
+├── frontend/                # Next.js chat UI
+├── data/                    # Fanuc manuals + SOPs (PDFs and TXT)
+├── requirements.txt
+├── render.yaml              # Render deployment config
+└── README.md
+```
+
+## Data Sources
+
+| Document | Pages | Content |
+|----------|-------|---------|
+| Fanuc LR Mate 200iD Operators Manual | ~250 | Robot operation, safety, maintenance |
+| Fanuc KAREL Language Reference (7066350) | ~500 | Programming reference, error codes |
+| 5 Custom SOPs | — | Spindle vibration, coolant, E-stop recovery, inspection, PM |
+
+## API Endpoints
+
+### `POST /ask`
+```json
+// Request
+{
+  "question": "What is the motion range of the J1 axis?",
+  "history": []
+}
+
+// Response
+{
+  "answer": "The J1 axis motion range is ±170 degrees...",
+  "sources": [
+    {
+      "text": "J1 axis: Motion range ±170°, maximum speed...",
+      "source": "Fanuc Robot LR Mate 200iD Operators Manual.pdf",
+      "score": 0.033333
+    }
+  ]
+}
+```
+
+### `GET /health`
+```json
+{
+  "status": "online",
+  "service": "ops-copilot",
+  "chunks_indexed": 847
+}
+```
+
+## Local Development
+
 ```bash
-# 1. Start the FastAPI Backend
+# 1. Clone
+git clone https://github.com/siddgawad/Ops-Copilot-Agentic-RAG-for-Manufacturing.git
+cd Ops-Copilot-Agentic-RAG-for-Manufacturing
+
+# 2. Backend
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
-cp .env.example .env # Add your OPENAI_API_KEY
+cp .env.example .env       # Add your OPENAI_API_KEY
 uvicorn src.main:app --reload --port 8000
 
-# 2. Start the Next.js Frontend
+# 3. Frontend
 cd frontend
 npm install
-npm run dev
-# App will run at http://localhost:3000
+npm run dev                 # Opens on localhost:3000
+
+# 4. Run Tests
+pytest tests/ -v
 ```
 
-## 🌐 Deployment Instructions
+## Deployment
 
-### 1. Deploy the Backend (Render)
-Make sure `render.yaml` is committed to your repository.
-1. Sign in to [Render](https://render.com/).
-2. Click **New** -> **Web Service** -> **Build and deploy from a Git repository**.
-3. Connect your GitHub fork. Render will automatically detect the settings from `render.yaml`.
-4. In the Render dashboard for your service, go to **Environment** and add `OPENAI_API_KEY` with your actual key.
-5. Copy your Render service URL (e.g., `https://ops-copilot-api.onrender.com`).
+### Backend (Render)
+1. Create a new **Web Service** on [render.com](https://render.com)
+2. Connect your GitHub repo
+3. **Root Directory:** leave empty
+4. **Build Command:** `pip install -r requirements.txt`
+5. **Start Command:** `uvicorn src.main:app --host 0.0.0.0 --port $PORT`
+6. Add environment variable: `OPENAI_API_KEY`
 
-### 2. Deploy the Frontend (Vercel)
-1. Sign in to [Vercel](https://vercel.com/).
-2. Click **Add New** -> **Project** and import your GitHub fork.
-3. In the "Framework Preset" settings, Vercel should auto-detect Next.js.
-4. **Important**: Change the "Root Directory" to `frontend`.
-5. Under **Environment Variables**, add `NEXT_PUBLIC_API_URL` and set it to your Render service URL (no trailing slash).
-6. Click **Deploy**.
+### Frontend (Vercel)
+1. Import the repo on [vercel.com](https://vercel.com)
+2. **Root Directory:** `frontend`
+3. **Framework Preset:** Next.js
+4. Add environment variable: `NEXT_PUBLIC_API_URL` = your Render URL
 
-## 📊 Sample Queries
-- *"What vibration level requires immediate spindle shutdown?"*
-- *"What is the maximum torque for spindle bolts?"*
-- *"How do I perform a First Article Inspection?"*
-- *"What are the E‑stop recovery steps for the Fanuc LR Mate?"*
+## Design Decisions
 
-## 📈 Impact & Next Steps
-- **Potential employer showcase**: Demonstrates a full-stack, enterprise-grade AI architecture (decoupled frontend/backend) preferred by Tier-1 employers.
+- **Hybrid search over pure vector search:** Manufacturing manuals contain exact part numbers, alarm codes, and axis designations (e.g., "J5", "Alarm 503") that vector embeddings handle poorly. BM25 catches these exact matches. RRF merges both rankings without needing to tune weights.
+- **OpenAI embeddings over local models:** Render's free tier has 512MB RAM. The default ChromaDB embedding model (all-MiniLM-L6-v2) is ~400MB. Using the OpenAI API for embeddings keeps server memory under 200MB.
+- **100-word chunks with character truncation:** Fanuc manuals contain dense code blocks that tokenize into far more tokens than normal English. Hard-capping chunks at 4000 characters prevents exceeding OpenAI's 8192 token-per-embedding limit.
+- **Batch embedding with retry:** Chunks are embedded in batches of 5 with per-batch error handling. If a batch fails, each chunk is retried individually so one bad chunk doesn't kill the entire indexing run.
 
-## 📜 License
-MIT © 2024‑2026 Siddharth Gawad
+## Running Tests
+
+```bash
+pytest tests/ -v
+```
+
+Tests cover:
+- Chunk text splitting produces valid output
+- Chunk character truncation enforces the 4000-char limit
+- API health endpoint returns correct schema
+- API ask endpoint returns answer + source citations
+
+## License
+
+MIT
