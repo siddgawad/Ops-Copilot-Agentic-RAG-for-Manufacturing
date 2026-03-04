@@ -88,6 +88,25 @@ class VectorStore:
 
     def load_documents_from_folder(self, folder_path: str):
         """Load PDFs and TXT files, chunk them, index in ChromaDB + BM25."""
+        # Skip re-indexing if ChromaDB already has the documents
+        existing_count = self.collection.count()
+        if existing_count > 0:
+            print(f"✅ ChromaDB already contains {existing_count} chunks. Skipping PDF parsing and embedding API calls.")
+            
+            # Repopulate raw_chunks and bm25 from the DB
+            all_docs = self.collection.get()
+            self.raw_chunks = all_docs["documents"]
+            
+            for doc, meta_id in zip(self.raw_chunks, all_docs["ids"]):
+                # Extract filename from ID (e.g., "manual.pdf_chunk_5" -> "manual.pdf")
+                self.chunk_sources[doc] = meta_id.rsplit('_chunk_', 1)[0]
+                
+            tokenized_corpus = [chunk.lower().split(" ") for chunk in self.raw_chunks]
+            self.bm25 = BM25Okapi(tokenized_corpus)
+            print(f"✅ Rebuilt BM25 index from {len(self.raw_chunks)} existing database chunks")
+            return
+
+        print("⚠️ ChromaDB is empty. Parsing PDFs and calling OpenAI Embeddings API...")
         filenames = os.listdir(folder_path)
         for filename in filenames:
             filepath = os.path.join(folder_path, filename)
