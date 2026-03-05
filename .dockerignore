@@ -1,0 +1,14 @@
+.venv
+.env
+.git
+.github
+.chromadb
+.pytest_cache
+__pycache__
+*.pyc
+frontend/node_modules
+frontend/.next
+README.md
+Dockerfile
+.dockerignore
+.devcontainer
