@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Server, RotateCcw, Factory } from "lucide-react";
+import { Send, Sparkles, RotateCcw, Factory } from "lucide-react";
 
 type Source = {
   text: string;
@@ -24,6 +24,8 @@ export default function Home() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "waking" | "offline">("checking");
+  const [chunksIndexed, setChunksIndexed] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use env var in production, default to local FastAPI in dev
@@ -36,6 +38,30 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Health check on page load — detect cold starts
+  useEffect(() => {
+    const checkHealth = async () => {
+      setServerStatus("checking");
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout for cold start
+        setServerStatus("waking");
+        const res = await fetch(`${API_URL}/health`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          setChunksIndexed(data.chunks_indexed || 0);
+          setServerStatus("online");
+        } else {
+          setServerStatus("offline");
+        }
+      } catch {
+        setServerStatus("offline");
+      }
+    };
+    checkHealth();
+  }, [API_URL]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -58,6 +84,10 @@ export default function Home() {
           return null;
         }).filter(Boolean);
 
+      // 90s timeout to handle Render free tier cold starts
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+
       const response = await fetch(`${API_URL}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,11 +95,14 @@ export default function Home() {
           question: userMessage,
           history: history
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!response.ok) throw new Error("API request failed");
 
       const data = await response.json();
+      setServerStatus("online");
 
       setMessages((prev) => [
         ...prev,
@@ -77,9 +110,12 @@ export default function Home() {
       ]);
     } catch (error) {
       console.error(error);
+      const errorMsg = serverStatus !== "online"
+        ? "⏳ The backend server is waking up (free tier spins down after inactivity). Please wait ~60 seconds and try again."
+        : "⚠️ Error connecting to the RAG backend. The server may have gone to sleep — please retry in a moment.";
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "⚠️ Error connecting to the RAG backend. Make sure the API is running." },
+        { role: "assistant", content: errorMsg },
       ]);
     } finally {
       setIsLoading(false);
@@ -101,8 +137,22 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <Server size={14} className="text-emerald-500" />
-            <span className="hidden sm:inline">Render Backend</span>
+            {serverStatus === "online" ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="hidden sm:inline">{chunksIndexed} chunks indexed</span>
+              </>
+            ) : serverStatus === "waking" || serverStatus === "checking" ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="hidden sm:inline">Server waking up...</span>
+              </>
+            ) : (
+              <>
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                <span className="hidden sm:inline">Server offline</span>
+              </>
+            )}
           </div>
           <button
             onClick={() => setMessages([messages[0]])}
