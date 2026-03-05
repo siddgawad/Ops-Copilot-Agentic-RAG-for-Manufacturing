@@ -126,8 +126,8 @@ export default function Home() {
               {/* Avatar */}
               <div
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${message.role === "assistant"
-                    ? "bg-orange-500/20 text-orange-500"
-                    : "bg-zinc-800 text-zinc-300"
+                  ? "bg-orange-500/20 text-orange-500"
+                  : "bg-zinc-800 text-zinc-300"
                   }`}
               >
                 {message.role === "assistant" ? <Sparkles size={16} /> : "U"}
@@ -140,8 +140,8 @@ export default function Home() {
               >
                 <div
                   className={`rounded-2xl px-4 py-3 shadow-sm ${message.role === "user"
-                      ? "bg-zinc-800 text-zinc-100 rounded-tr-sm"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-tl-sm prose prose-invert prose-sm"
+                    ? "bg-zinc-800 text-zinc-100 rounded-tr-sm"
+                    : "bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-tl-sm prose prose-invert prose-sm"
                     }`}
                 >
                   <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
@@ -168,7 +168,7 @@ export default function Home() {
                             </span>
                           </div>
                           <p className="line-clamp-3 text-zinc-500 leading-relaxed">
-                            "{src.text}"
+                            &ldquo;{src.text}&rdquo;
                           </p>
                         </div>
                       ))}
